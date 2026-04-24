@@ -4,6 +4,7 @@ import json
 from jsonschema import ValidationError
 from resgen.core import load_resume, validate_schema, get_template_env
 from pathlib import Path
+from datetime import datetime
 
 load_dotenv()
 
@@ -68,6 +69,69 @@ def export(format: str = typer.Option(..., help="Export format: 'md' or 'html'")
     except Exception as e:
         typer.secho(f"Unexpected Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
+
+@app.command()
+def stats():
+    """Calculates fun statistics from your resume."""
+    try:
+        data = load_resume()
+        # Optionally validate, though for stats it might be fine without strict schema check.
+        # Still good to make sure data structure is roughly sound.
+        validate_schema(data)
+        
+        typer.secho("📊 Resume Statistics", fg=typer.colors.CYAN, bold=True)
+        typer.echo("-" * 20)
+        
+        # 1. Total Years of Experience
+        work = data.get("work", [])
+        if work:
+            min_start = None
+            max_end = None
+            for job in work:
+                start_str = job.get("startDate")
+                end_str = job.get("endDate")
+                
+                if start_str:
+                    try:
+                        start_date = datetime.strptime(start_str, "%Y-%m-%d")
+                        if min_start is None or start_date < min_start:
+                            min_start = start_date
+                    except ValueError:
+                        pass
+                        
+                if end_str:
+                    try:
+                        end_date = datetime.strptime(end_str, "%Y-%m-%d")
+                        if max_end is None or end_date > max_end:
+                            max_end = end_date
+                    except ValueError:
+                        max_end = datetime.now()
+                else:
+                    max_end = datetime.now()
+            
+            if min_start and max_end:
+                years = round((max_end - min_start).days / 365.25, 1)
+                typer.echo(f"💼 Total Experience: {years} years")
+        
+        # 2. Total Skills / Keywords
+        skills = data.get("skills", [])
+        if skills:
+            total_skills = len(skills)
+            total_keywords = sum(len(skill.get("keywords", [])) for skill in skills)
+            typer.echo(f"🛠️  Skill Categories: {total_skills} ({total_keywords} total keywords)")
+        
+        # 3. Total Projects
+        projects = data.get("projects", [])
+        if projects:
+            typer.echo(f"🚀 Projects: {len(projects)}")
+            
+        # 4. Education
+        education = data.get("education", [])
+        if education:
+            typer.echo(f"🎓 Education entries: {len(education)}")
+            
+    except Exception as e:
+        typer.secho(f"❌ Error calculating stats: {e}", fg=typer.colors.RED)
 
 if __name__ == "__main__":
     app()

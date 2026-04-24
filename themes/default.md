@@ -1,58 +1,66 @@
 # {{ basics.name }}
 **{{ basics.label }}**
 
-Email: {{ basics.email }} | Phone: {{ basics.phone }} | Website: {{ basics.url }}
-Location: {{ basics.location.city }}, {{ basics.location.region }}, {{ basics.location.countryCode }}
+`{{ basics.email }}` | `{{ basics.phone }}` | [Website]({{ basics.url }}){% if basics.profiles %} | {% for profile in basics.profiles %}[{{ profile.network }}]({{ profile.url }}){% if not loop.last %} | {% endif %}{% endfor %}{% endif %}
+{{ basics.location.city }}, {{ basics.location.region }}, {{ basics.location.countryCode }}
 
-{% if basics.summary %}
-## Summary
+{% if basics.summary -%}
+## Profile
 {{ basics.summary }}
-{% endif %}
+{% endif -%}
 
-{% if work %}
-## Experience
+{% if skills -%}
+## Core Strengths
+{% for skill in skills -%}
+- **{{ skill.name }}:** {{ skill.keywords | join(", ") }}
+{% endfor -%}
+{% endif -%}
 
-{% for job in work %}
-### {{ job.position }} at {{ job.name }}
-*{{ job.startDate }} - {{ job.endDate }}*
+{% if projects -%}
+## Selected Projects
+Projects selected to foreground AI, frontend, and product delivery work.
 
-{{ job.summary }}
-{% if job.highlights %}
-* {% for highlight in job.highlights %}{{ highlight }}{% if not loop.last %}
-* {% endif %}{% endfor %}
-{% endif %}
-{% endfor %}
-{% endif %}
-
-{% if education %}
-## Education
-
-{% for edu in education %}
-### {{ edu.institution }}
-**{{ edu.studyType }} in {{ edu.area }}**
-*{{ edu.startDate }} - {{ edu.endDate }}*
-{% endfor %}
-{% endif %}
-
-{% if skills %}
-## Skills
-
-{% for skill in skills %}
-* **{{ skill.name }}**: {{ skill.keywords | join(', ') }}
-{% endfor %}
-{% endif %}
-
-{% if projects %}
-## Projects
-
-{% for project in projects %}
-### {{ project.name }}
-*{{ project.startDate }} - {{ project.endDate }}* | [Link]({{ project.url }})
+{% for project in projects -%}
+### {% if project.url %}[{{ project.name }}]({{ project.url }}){% else %}{{ project.name }}{% endif %}
+**Timeline:** {{ project.startDate }} - {{ project.endDate }}
 
 {{ project.description }}
-{% if project.highlights %}
-* {% for highlight in project.highlights %}{{ highlight }}{% if not loop.last %}
-* {% endif %}{% endfor %}
-{% endif %}
-{% endfor %}
+{% if project.highlights -%}
+{% for highlight in project.highlights -%}
+- {{ highlight }}
+{% endfor -%}
+{% endif -%}
+
+{% endfor -%}
+{% endif -%}
+
+{% if work -%}
+## Experience
+
+{% for job in work -%}
+### {{ job.position }} | **{{ job.name }}**
+{{ job.startDate }} - {{ job.endDate }}{% if job.url %} | [Company]({{ job.url }}){% endif %}
+
+{{ job.summary }}
+{% if job.highlights -%}
+{% for highlight in job.highlights -%}
+- {{ highlight }}
+{% endfor -%}
+{% endif -%}
+
+{% endfor -%}
+{% endif -%}
+
+{% if education -%}
+## Education
+
+{% for edu in education -%}
+### {% if edu.url %}[{{ edu.institution }}]({{ edu.url }}){% else %}{{ edu.institution }}{% endif %}
+**{{ edu.studyType }} in {{ edu.area }}**
+{{ edu.startDate }} - {{ edu.endDate }}{% if edu.score %} | GPA/Score: {{ edu.score }}{% endif %}
+{% if edu.courses -%}
+Relevant coursework: {{ edu.courses | join(", ") }}
+{% endif -%}
+
+{% endfor -%}
 {% endif %}

@@ -1,0 +1,3 @@
+[console_scripts]
+resgen = resgen.main:app
+resume = resgen.main:app

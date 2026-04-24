@@ -2,7 +2,7 @@ import typer
 from dotenv import load_dotenv
 import json
 from jsonschema import ValidationError
-from src.resgen.core import load_resume, validate_schema
+from resgen.core import load_resume, validate_schema
 
 load_dotenv()
 
@@ -28,7 +28,7 @@ def validate():
     except FileNotFoundError as e:
         typer.secho(f"File Error: {e}", fg=typer.colors.RED)
     except json.JSONDecodeError as e:
-        typer.secho(f"JSON Parse Error: {e}", fg=typer.colors.RED)
+        typer.secho(f"JSON Parse Error at line {e.lineno}: {e.msg}", fg=typer.colors.RED)
     except ValidationError as e:
         typer.secho("❌ Validation Error!", fg=typer.colors.RED)
         typer.secho(f"Message: {e.message}", fg=typer.colors.YELLOW)

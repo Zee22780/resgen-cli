@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+src/resgen/__init__.py
+src/resgen/config.py
+src/resgen/core.py
+src/resgen/main.py
+src/resgen_cli.egg-info/PKG-INFO
+src/resgen_cli.egg-info/SOURCES.txt
+src/resgen_cli.egg-info/dependency_links.txt
+src/resgen_cli.egg-info/entry_points.txt
+src/resgen_cli.egg-info/requires.txt
+src/resgen_cli.egg-info/top_level.txt

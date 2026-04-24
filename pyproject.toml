@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "resgen-cli"
+version = "0.1.0"
+description = "Personal Career Data Engine"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "typer",
+    "jinja2",
+    "python-dotenv",
+    "jsonschema"
+]
+
+[project.scripts]
+resume = "resgen.main:app"
+resgen = "resgen.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]

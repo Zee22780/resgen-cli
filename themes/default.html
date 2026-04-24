@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ basics.name }} - Resume</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        header {
+            text-align: center;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+        .contact-info {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .job-header, .edu-header, .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 10px;
+        }
+        .date {
+            color: #666;
+            font-style: italic;
+            font-size: 0.9em;
+        }
+        ul {
+            margin-top: 5px;
+            padding-left: 20px;
+        }
+        .skills-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .skills-list li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>{{ basics.name }}</h1>
+        <h2>{{ basics.label }}</h2>
+        <div class="contact-info">
+            {{ basics.email }} | {{ basics.phone }} | <a href="{{ basics.url }}">Website</a><br>
+            {{ basics.location.city }}, {{ basics.location.region }}, {{ basics.location.countryCode }}
+        </div>
+    </header>
+
+    {% if basics.summary %}
+    <div class="section">
+        <h2>Summary</h2>
+        <p>{{ basics.summary }}</p>
+    </div>
+    {% endif %}
+
+    {% if work %}
+    <div class="section">
+        <h2>Experience</h2>
+        {% for job in work %}
+        <div class="job">
+            <div class="job-header">
+                <h3>{{ job.position }} at {{ job.name }}</h3>
+                <span class="date">{{ job.startDate }} - {{ job.endDate }}</span>
+            </div>
+            <p>{{ job.summary }}</p>
+            {% if job.highlights %}
+            <ul>
+                {% for highlight in job.highlights %}
+                <li>{{ highlight }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if education %}
+    <div class="section">
+        <h2>Education</h2>
+        {% for edu in education %}
+        <div class="edu">
+            <div class="edu-header">
+                <h3>{{ edu.institution }}</h3>
+                <span class="date">{{ edu.startDate }} - {{ edu.endDate }}</span>
+            </div>
+            <p><strong>{{ edu.studyType }} in {{ edu.area }}</strong></p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if skills %}
+    <div class="section">
+        <h2>Skills</h2>
+        <ul class="skills-list">
+            {% for skill in skills %}
+            <li><strong>{{ skill.name }}</strong>: {{ skill.keywords | join(', ') }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if projects %}
+    <div class="section">
+        <h2>Projects</h2>
+        {% for project in projects %}
+        <div class="project">
+            <div class="project-header">
+                <h3>{{ project.name }}</h3>
+                <span class="date">{{ project.startDate }} - {{ project.endDate }}</span>
+            </div>
+            <p>{{ project.description }} <a href="{{ project.url }}">[Link]</a></p>
+            {% if project.highlights %}
+            <ul>
+                {% for highlight in project.highlights %}
+                <li>{{ highlight }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</body>
+</html>

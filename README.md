@@ -11,7 +11,7 @@ The goal of this project is to maintain a single source of truth for career data
 * **Dynamic Export**: Renders your data into different themes and formats:
   * Markdown (for GitHub/Portfolios)
   * HTML (precursor for React Dashboards)
-  * PDF (using WeasyPrint)
+  * PDF (using WeasyPrint and the HTML theme)
 * **Career Stats**: Utility commands to quickly calculate metrics like total years of experience or skill occurrences.
 
 ## Tech Stack
@@ -27,3 +27,9 @@ The goal of this project is to maintain a single source of truth for career data
 2. Activate it: `source venv/bin/activate`
 3. Install dependencies: `pip install -r requirements.txt`
 4. Run the CLI: `python -m src.resgen.main --help`
+
+## Export Formats
+
+Use `resume export --format md` for Markdown, `resume export --format html` for HTML, and `resume export --format pdf` for print-ready PDF output.
+
+If PDF export fails because `WeasyPrint` is missing, install it in your active environment with `pip install weasyprint`. Some platforms also require native rendering libraries; follow the WeasyPrint installation guide for your OS if the Python package alone is not enough.

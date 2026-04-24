@@ -14,3 +14,4 @@ rich==15.0.0
 rpds-py==0.30.0
 shellingham==1.5.4
 typer==0.24.2
+weasyprint

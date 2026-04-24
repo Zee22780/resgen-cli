@@ -9,6 +9,36 @@ from datetime import datetime
 load_dotenv()
 
 app = typer.Typer()
+SUPPORTED_EXPORT_FORMATS = {"md", "html", "pdf"}
+
+
+def _render_resume_template(template_name: str) -> str:
+    """Loads validated resume data and renders the requested template."""
+    data = load_resume()
+    validate_schema(data)
+
+    env = get_template_env()
+    template = env.get_template(template_name)
+    return template.render(**data)
+
+
+def _export_pdf(output_file: Path) -> None:
+    """Renders the HTML theme to PDF using WeasyPrint when available."""
+    try:
+        from weasyprint import HTML
+    except ImportError as exc:
+        raise RuntimeError(
+            "PDF export requires the optional 'weasyprint' dependency. "
+            "Install it with `pip install weasyprint`."
+        ) from exc
+
+    rendered_html = _render_resume_template("default.html")
+    HTML(string=rendered_html, base_url=str(Path.cwd())).write_pdf(output_file)
+
+
+def _write_text_output(output_file: Path, rendered_output: str) -> None:
+    with open(output_file, "w") as f:
+        f.write(rendered_output)
 
 @app.command()
 def hello():
@@ -39,24 +69,24 @@ def validate():
         typer.secho(f"Unexpected Error: {e}", fg=typer.colors.RED)
 
 @app.command()
-def export(format: str = typer.Option(..., help="Export format: 'md' or 'html'")):
+def export(format: str = typer.Option(..., help="Export format: 'md', 'html', or 'pdf'")):
     """Exports the resume to the specified format."""
-    if format not in ["md", "html"]:
-        typer.secho(f"Error: Unsupported format '{format}'. Please use 'md' or 'html'.", fg=typer.colors.RED)
+    if format not in SUPPORTED_EXPORT_FORMATS:
+        supported_formats = ", ".join(sorted(SUPPORTED_EXPORT_FORMATS))
+        typer.secho(
+            f"Error: Unsupported format '{format}'. Please use one of: {supported_formats}.",
+            fg=typer.colors.RED,
+        )
         raise typer.Exit(code=1)
         
     try:
-        data = load_resume()
-        validate_schema(data)
-        
-        env = get_template_env()
-        template = env.get_template(f"default.{format}")
-        
-        rendered_output = template.render(**data)
-        
         output_file = Path(f"resume_export.{format}")
-        with open(output_file, "w") as f:
-            f.write(rendered_output)
+
+        if format == "pdf":
+            _export_pdf(output_file)
+        else:
+            rendered_output = _render_resume_template(f"default.{format}")
+            _write_text_output(output_file, rendered_output)
             
         typer.secho(f"✅ Successfully exported resume to {output_file.absolute()}", fg=typer.colors.GREEN)
         
@@ -65,6 +95,9 @@ def export(format: str = typer.Option(..., help="Export format: 'md' or 'html'")
         raise typer.Exit(code=1)
     except ValidationError as e:
         typer.secho("❌ Validation Error! Please run `resume validate` to fix issues.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    except RuntimeError as e:
+        typer.secho(f"Configuration Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
     except Exception as e:
         typer.secho(f"Unexpected Error: {e}", fg=typer.colors.RED)

@@ -12,7 +12,8 @@ dependencies = [
     "typer",
     "jinja2",
     "python-dotenv",
-    "jsonschema"
+    "jsonschema",
+    "weasyprint",
 ]
 
 [project.scripts]

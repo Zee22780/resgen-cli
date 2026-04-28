@@ -93,6 +93,20 @@ class ValidationReportResult:
     error: DashboardError | None = None
 
 
+@dataclass(frozen=True)
+class ExportArtifact:
+    format_name: str
+    output_path: Path
+    file_size_bytes: int
+    exported_at: datetime
+
+
+@dataclass(frozen=True)
+class ExportResult:
+    artifact: ExportArtifact | None
+    error: DashboardError | None = None
+
+
 def validate_resume() -> dict:
     """Load resume data and validate it against the configured schema."""
     data = load_resume()
@@ -127,6 +141,68 @@ def export_resume(format_name: str, output_file: Path | None = None) -> Path:
 
     _LAST_EXPORT_PATH = destination
     return destination
+
+
+def get_default_export_path(format_name: str) -> Path:
+    """Return the default output path for a supported export format."""
+    if format_name not in SUPPORTED_EXPORT_FORMATS:
+        supported_formats = ", ".join(sorted(SUPPORTED_EXPORT_FORMATS))
+        raise ValueError(
+            f"Unsupported format '{format_name}'. Please use one of: {supported_formats}."
+        )
+
+    return Path(f"resume_export.{format_name}")
+
+
+def run_resume_export(format_name: str, output_file: Path | None = None) -> ExportResult:
+    """Run an export and return structured success or failure details for UI consumers."""
+    destination = output_file or get_default_export_path(format_name)
+
+    try:
+        exported_path = export_resume(format_name, destination)
+    except ValueError as exc:
+        return ExportResult(
+            artifact=None,
+            error=DashboardError(kind="export_error", message=str(exc)),
+        )
+    except FileNotFoundError as exc:
+        return ExportResult(
+            artifact=None,
+            error=DashboardError(kind="file_error", message=str(exc)),
+        )
+    except ValidationError as exc:
+        path_parts = [str(part) for part in exc.path]
+        missing_property = _extract_missing_property(exc)
+        if missing_property is not None:
+            path_parts.append(missing_property)
+        json_path = _format_json_path(path_parts)
+        return ExportResult(
+            artifact=None,
+            error=DashboardError(
+                kind="validation_error",
+                message=f"{exc.message} (path: {json_path})",
+            ),
+        )
+    except RuntimeError as exc:
+        return ExportResult(
+            artifact=None,
+            error=DashboardError(kind="dependency_error", message=str(exc)),
+        )
+    except Exception as exc:
+        return ExportResult(
+            artifact=None,
+            error=DashboardError(kind="unexpected_error", message=str(exc)),
+        )
+
+    file_stats = exported_path.stat()
+    return ExportResult(
+        artifact=ExportArtifact(
+            format_name=format_name,
+            output_path=exported_path,
+            file_size_bytes=file_stats.st_size,
+            exported_at=datetime.now(),
+        )
+    )
 
 
 def collect_resume_stats() -> ResumeStats:

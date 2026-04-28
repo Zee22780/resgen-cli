@@ -11,8 +11,10 @@ import resgen.services as services
 from resgen.services import (
     collect_resume_stats,
     export_resume,
+    get_default_export_path,
     get_resume_overview,
     get_resume_validation_report,
+    run_resume_export,
     validate_resume,
 )
 
@@ -184,6 +186,35 @@ class ResumeServicesTest(unittest.TestCase):
     def test_export_resume_rejects_unknown_formats(self) -> None:
         with self.assertRaises(ValueError):
             export_resume("txt")
+
+    def test_get_default_export_path_uses_format_extension(self) -> None:
+        self.assertEqual(get_default_export_path("html"), Path("resume_export.html"))
+
+    def test_run_resume_export_returns_artifact_metadata(self) -> None:
+        with self._patched_resume_env():
+            result = run_resume_export("md", Path("custom_resume.md"))
+
+        self.assertIsNone(result.error)
+        self.assertIsNotNone(result.artifact)
+        assert result.artifact is not None
+        self.assertEqual(result.artifact.format_name, "md")
+        self.assertEqual(result.artifact.output_path, Path("custom_resume.md"))
+        self.assertGreater(result.artifact.file_size_bytes, 0)
+        self.assertTrue(Path("custom_resume.md").exists())
+        Path("custom_resume.md").unlink()
+
+    def test_run_resume_export_wraps_validation_failures(self) -> None:
+        resume_data = json.loads(RESUME_JSON)
+        del resume_data["basics"]["email"]
+
+        with self._patched_resume_env(resume_json=json.dumps(resume_data)):
+            result = run_resume_export("md", Path("broken_resume.md"))
+
+        self.assertIsNone(result.artifact)
+        self.assertIsNotNone(result.error)
+        assert result.error is not None
+        self.assertEqual(result.error.kind, "validation_error")
+        self.assertIn("$.basics.email", result.error.message)
 
     def _patched_resume_env(self, resume_json: str = RESUME_JSON):
         resume_path = Path("resume.json")

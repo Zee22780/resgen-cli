@@ -2,6 +2,7 @@ from textual.app import App
 from textual.binding import Binding
 
 from .screens.dashboard import DashboardScreen
+from .screens.export import ExportScreen
 from .screens.validation import ValidationScreen
 
 
@@ -64,6 +65,51 @@ class ResgenTuiApp(App[None]):
     #validation-detail {
         width: 1fr;
     }
+
+    #export-root {
+        padding: 1 2;
+    }
+
+    #export-toolbar {
+        height: auto;
+        margin: 0 0 1 0;
+    }
+
+    #export-formats {
+        width: 32;
+        margin-right: 1;
+    }
+
+    #export-controls {
+        width: 1fr;
+    }
+
+    #export-path {
+        margin: 0 0 1 0;
+    }
+
+    .export-actions {
+        height: auto;
+        margin: 0 0 1 0;
+    }
+
+    .export-actions Button {
+        margin-right: 1;
+    }
+
+    #export-note {
+        height: auto;
+        margin: 0 0 1 0;
+    }
+
+    #export-status {
+        height: auto;
+        margin: 0 0 1 0;
+    }
+
+    #export-log {
+        height: 1fr;
+    }
     """
     BINDINGS = [
         Binding("d", "show_dashboard", "Dashboard"),
@@ -78,10 +124,14 @@ class ResgenTuiApp(App[None]):
     def on_mount(self) -> None:
         self.install_screen(DashboardScreen(), name="dashboard")
         self.install_screen(ValidationScreen(), name="validation")
+        self.install_screen(ExportScreen(), name="export")
         self.sub_title = "Dashboard"
         self.push_screen("dashboard")
 
     def action_show_dashboard(self) -> None:
+        dashboard_screen = self.get_screen("dashboard")
+        if isinstance(dashboard_screen, DashboardScreen):
+            dashboard_screen.refresh_dashboard()
         self._show_screen("dashboard", "Dashboard")
 
     def action_show_resume_summary(self) -> None:
@@ -91,7 +141,7 @@ class ResgenTuiApp(App[None]):
         self._show_screen("validation", "Validation")
 
     def action_show_export(self) -> None:
-        self.notify("Export flow is planned for a later phase.")
+        self._show_screen("export", "Export")
 
     def action_show_settings(self) -> None:
         self.notify("Settings screen is planned for a later phase.")

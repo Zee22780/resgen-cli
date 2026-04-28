@@ -13,7 +13,7 @@ The goal of this project is to maintain a single source of truth for career data
   * HTML
   * PDF (using WeasyPrint and the HTML theme)
 * **Career Stats**: Utility commands to quickly calculate metrics like total years of experience or skill occurrences.
-* **Read-Only TUI Dashboard**: Launches a Textual dashboard that shows profile info, resume section counts, validation state, and the most recent export path for the current session.
+* **Interactive TUI App**: Launches a Textual app with a dashboard, in-app validation workflow, and an export screen for writing Markdown, HTML, or PDF artifacts without leaving the terminal UI.
 
 ## Tech Stack
 
@@ -114,28 +114,39 @@ resume stats
 resume tui
 ```
 
-## TUI Dashboard
+## TUI App
 
-Use `resume tui` to launch the terminal dashboard.
+Use `resume tui` to launch the terminal UI.
 
-The current MVP dashboard includes:
+The current TUI includes:
 
 * profile and summary details from `basics`
 * stat cards for experience, skills, projects, and education
 * validation health and last export status
 * section inventory counts across the resume
+* an in-app validation screen
+* an in-app export screen for Markdown, HTML, and PDF
 
 Press `q` to quit the TUI.
 
-Press `v` inside the TUI to open the validation screen. The current validation flow includes:
+Press `v` inside the TUI to open the validation screen. The validation flow includes:
 
 * a `Run Validation` action
 * a navigable issue list for schema failures
 * detailed panels showing the error message, JSON path, schema rule, and likely next fix
 
+Press `e` inside the TUI to open the export screen. The export flow includes:
+
+* format selection for `md`, `html`, and `pdf`
+* a prefilled output path based on the selected format
+* explicit output-path confirmation before writes are allowed
+* in-app success and failure states, including export metadata and error feedback
+
 ## Export Formats
 
 Use `resume export --format md` for Markdown, `resume export --format html` for HTML, and `resume export --format pdf` for print-ready PDF output.
+
+The same export formats are available inside `resume tui` on the export screen.
 
 If PDF export fails because `WeasyPrint` is missing, install it in your active environment with `pip install weasyprint`. Some platforms also require native rendering libraries; follow the WeasyPrint installation guide for your OS if the Python package alone is not enough.
 

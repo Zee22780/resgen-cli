@@ -13,10 +13,12 @@ load_dotenv()
 
 app = typer.Typer()
 
+
 @app.command()
 def hello():
     """Test command to verify setup."""
     typer.echo("resgen-cli is set up and ready!")
+
 
 @app.command()
 def validate():
@@ -41,6 +43,7 @@ def validate():
     except Exception as e:
         typer.secho(f"Unexpected Error: {e}", fg=typer.colors.RED)
 
+
 @app.command()
 def export(format: str = typer.Option(..., help="Export format: 'md', 'html', or 'pdf'")):
     """Exports the resume to the specified format."""
@@ -62,6 +65,7 @@ def export(format: str = typer.Option(..., help="Export format: 'md', 'html', or
     except Exception as e:
         typer.secho(f"Unexpected Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
+
 
 @app.command()
 def stats():
@@ -90,6 +94,22 @@ def stats():
 
     except Exception as e:
         typer.secho(f"❌ Error calculating stats: {e}", fg=typer.colors.RED)
+
+
+@app.command()
+def tui():
+    """Launch the Textual dashboard."""
+    try:
+        from resgen.tui.app import ResgenTuiApp
+    except ImportError as e:
+        typer.secho(
+            f"TUI dependency error: {e}. Install the project dependencies to use `resume tui`.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
+    ResgenTuiApp().run()
+
 
 if __name__ == "__main__":
     app()

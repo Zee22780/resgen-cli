@@ -2,21 +2,23 @@
 
 A Python-based CLI tool built with **Typer** to dynamically generate and manage professional resumes from a central `resume.json` file. 
 
-The goal of this project is to maintain a single source of truth for career data and securely transform it into various professional artifacts (Markdown, HTML, PDF) using **Jinja2** templates.
+The goal of this project is to maintain a single source of truth for career data and securely transform it into various professional artifacts (Markdown, HTML, PDF) using **Jinja2** templates, while also providing a terminal dashboard for inspecting resume state at a glance.
 
-## Features (Planned)
+## Features
 
 * **Secure Ingest**: Loads `resume.json` and securely injects sensitive data (like phone numbers/emails) from a `.env` file during generation.
 * **Schema Validation**: Ensures your resume data conforms to a strict `schema.json` format.
 * **Dynamic Export**: Renders your data into different themes and formats:
   * Markdown (for GitHub/Portfolios)
-  * HTML (precursor for React Dashboards)
+  * HTML
   * PDF (using WeasyPrint and the HTML theme)
 * **Career Stats**: Utility commands to quickly calculate metrics like total years of experience or skill occurrences.
+* **Read-Only TUI Dashboard**: Launches a Textual dashboard that shows profile info, resume section counts, validation state, and the most recent export path for the current session.
 
 ## Tech Stack
 
 * [Typer](https://typer.tiangolo.com/) - CLI Framework
+* [Textual](https://textual.textualize.io/) - Terminal UI Framework
 * [Jinja2](https://jinja.palletsprojects.com/) - Templating Engine
 * [jsonschema](https://python-jsonschema.readthedocs.io/) - Data Validation
 * [python-dotenv](https://saurabh-kumar.com/python-dotenv/) - Secret Management
@@ -109,7 +111,27 @@ resume export --format md
 resume export --format html
 resume export --format pdf
 resume stats
+resume tui
 ```
+
+## TUI Dashboard
+
+Use `resume tui` to launch the terminal dashboard.
+
+The current MVP dashboard includes:
+
+* profile and summary details from `basics`
+* stat cards for experience, skills, projects, and education
+* validation health and last export status
+* section inventory counts across the resume
+
+Press `q` to quit the TUI.
+
+Press `v` inside the TUI to open the validation screen. The current validation flow includes:
+
+* a `Run Validation` action
+* a navigable issue list for schema failures
+* detailed panels showing the error message, JSON path, schema rule, and likely next fix
 
 ## Export Formats
 

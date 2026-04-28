@@ -2,12 +2,30 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import json
 from pathlib import Path
+import re
 
-from .core import get_template_env, load_resume, validate_schema
+from jsonschema import ValidationError
+
+from .core import get_template_env, iter_schema_errors, load_resume, validate_schema
 
 
 SUPPORTED_EXPORT_FORMATS = {"md", "html", "pdf"}
+SECTION_NAMES = (
+    "work",
+    "volunteer",
+    "education",
+    "awards",
+    "certificates",
+    "publications",
+    "languages",
+    "interests",
+    "references",
+    "projects",
+)
+
+_LAST_EXPORT_PATH: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -17,6 +35,62 @@ class ResumeStats:
     total_skill_keywords: int
     project_count: int
     education_count: int
+
+
+@dataclass(frozen=True)
+class DashboardIdentity:
+    name: str
+    label: str
+    summary: str
+
+
+@dataclass(frozen=True)
+class DashboardValidationStatus:
+    state: str
+    message: str | None = None
+
+
+@dataclass(frozen=True)
+class DashboardOverview:
+    identity: DashboardIdentity
+    stats: ResumeStats
+    section_counts: dict[str, int]
+    validation: DashboardValidationStatus
+    last_export_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class DashboardError:
+    kind: str
+    message: str
+
+
+@dataclass(frozen=True)
+class DashboardOverviewResult:
+    overview: DashboardOverview | None
+    error: DashboardError | None = None
+
+
+@dataclass(frozen=True)
+class ValidationIssue:
+    message: str
+    json_path: str
+    likely_next_action: str
+    validator_name: str
+    failing_value: str | None = None
+
+
+@dataclass(frozen=True)
+class ValidationReport:
+    state: str
+    validated_at: datetime
+    issues: list[ValidationIssue]
+
+
+@dataclass(frozen=True)
+class ValidationReportResult:
+    report: ValidationReport | None
+    error: DashboardError | None = None
 
 
 def validate_resume() -> dict:
@@ -36,6 +110,8 @@ def render_resume_template(template_name: str) -> str:
 
 def export_resume(format_name: str, output_file: Path | None = None) -> Path:
     """Export the resume in the requested format and return the written path."""
+    global _LAST_EXPORT_PATH
+
     if format_name not in SUPPORTED_EXPORT_FORMATS:
         supported_formats = ", ".join(sorted(SUPPORTED_EXPORT_FORMATS))
         raise ValueError(
@@ -49,13 +125,169 @@ def export_resume(format_name: str, output_file: Path | None = None) -> Path:
         rendered_output = render_resume_template(f"default.{format_name}")
         _write_text_output(destination, rendered_output)
 
+    _LAST_EXPORT_PATH = destination
     return destination
 
 
 def collect_resume_stats() -> ResumeStats:
     """Calculate basic statistics from validated resume data."""
     data = validate_resume()
+    return _build_resume_stats(data)
 
+
+def get_resume_overview() -> DashboardOverviewResult:
+    """Return a dashboard-friendly summary of the active resume state."""
+    data, error = _load_resume_data()
+    if error is not None:
+        return DashboardOverviewResult(overview=None, error=error)
+
+    validation = DashboardValidationStatus(state="valid")
+    try:
+        validate_schema(data)
+    except ValidationError as exc:
+        path = " -> ".join(str(part) for part in exc.path) or "<root>"
+        validation = DashboardValidationStatus(
+            state="invalid",
+            message=f"{exc.message} (path: {path})",
+        )
+    except FileNotFoundError as exc:
+        return DashboardOverviewResult(
+            overview=None,
+            error=DashboardError(kind="file_error", message=str(exc)),
+        )
+
+    basics = data.get("basics", {})
+    overview = DashboardOverview(
+        identity=DashboardIdentity(
+            name=basics.get("name", "Unknown"),
+            label=basics.get("label", ""),
+            summary=basics.get("summary", ""),
+        ),
+        stats=_build_resume_stats(data),
+        section_counts={section: len(data.get(section, [])) for section in SECTION_NAMES},
+        validation=validation,
+        last_export_path=_LAST_EXPORT_PATH,
+    )
+    return DashboardOverviewResult(overview=overview)
+
+
+def get_resume_validation_report() -> ValidationReportResult:
+    """Return structured validation output for TUI and future CLI consumers."""
+    data, error = _load_resume_data()
+    if error is not None:
+        return ValidationReportResult(report=None, error=error)
+
+    try:
+        schema_errors = iter_schema_errors(data)
+    except FileNotFoundError as exc:
+        return ValidationReportResult(
+            report=None,
+            error=DashboardError(kind="file_error", message=str(exc)),
+        )
+
+    issues = [_build_validation_issue(error) for error in schema_errors]
+    state = "valid" if not issues else "invalid"
+    return ValidationReportResult(
+        report=ValidationReport(
+            state=state,
+            validated_at=datetime.now(),
+            issues=issues,
+        )
+    )
+
+
+def get_last_export_path() -> Path | None:
+    """Return the most recent export destination for the current process."""
+    return _LAST_EXPORT_PATH
+
+
+def _load_resume_data() -> tuple[dict | None, DashboardError | None]:
+    try:
+        return load_resume(), None
+    except ValueError as exc:
+        return None, DashboardError(kind="config_error", message=str(exc))
+    except FileNotFoundError as exc:
+        return None, DashboardError(kind="file_error", message=str(exc))
+    except json.JSONDecodeError as exc:
+        return None, DashboardError(
+            kind="json_error",
+            message=f"JSON Parse Error at line {exc.lineno}: {exc.msg}",
+        )
+
+
+def _build_validation_issue(error: ValidationError) -> ValidationIssue:
+    missing_property = _extract_missing_property(error)
+    path_parts = [str(part) for part in error.path]
+    if missing_property is not None:
+        path_parts.append(missing_property)
+
+    json_path = _format_json_path(path_parts)
+    return ValidationIssue(
+        message=error.message,
+        json_path=json_path,
+        likely_next_action=_suggest_next_action(error, json_path, missing_property),
+        validator_name=error.validator,
+        failing_value=_format_failing_value(error.instance, path_parts),
+    )
+
+
+def _extract_missing_property(error: ValidationError) -> str | None:
+    if error.validator != "required":
+        return None
+
+    match = re.search(r"'([^']+)' is a required property", error.message)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def _format_json_path(path_parts: list[str]) -> str:
+    if not path_parts:
+        return "$"
+
+    pieces = ["$"]
+    for part in path_parts:
+        if part.isdigit():
+            pieces.append(f"[{part}]")
+        else:
+            pieces.append(f".{part}")
+    return "".join(pieces)
+
+
+def _suggest_next_action(
+    error: ValidationError,
+    json_path: str,
+    missing_property: str | None,
+) -> str:
+    if error.validator == "required":
+        field_name = missing_property or "field"
+        return f"Add `{field_name}` at {json_path} and rerun validation."
+    if error.validator == "type":
+        return f"Change the value at {json_path} to the expected `{error.validator_value}` type."
+    if error.validator == "enum":
+        return f"Replace the value at {json_path} with one of the allowed schema values."
+    if error.validator == "minItems":
+        return f"Add at least {error.validator_value} item(s) at {json_path}."
+    if error.validator == "additionalProperties":
+        return f"Remove unsupported fields near {json_path} or update the schema intentionally."
+    return f"Inspect the value at {json_path} and compare it against the schema requirements."
+
+
+def _format_failing_value(instance: object, path_parts: list[str]) -> str | None:
+    sensitive_parts = {"email", "phone", "phone_number"}
+    if any(part.lower() in sensitive_parts for part in path_parts):
+        return None
+
+    if isinstance(instance, (dict, list)):
+        return None
+
+    rendered = json.dumps(instance)
+    if len(rendered) > 120:
+        return f"{rendered[:117]}..."
+    return rendered
+
+
+def _build_resume_stats(data: dict) -> ResumeStats:
     work = data.get("work", [])
     min_start = None
     max_end = None

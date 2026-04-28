@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, Template
 from jsonschema import validate, ValidationError
+from jsonschema.validators import Draft202012Validator
 from .config import RESUME_JSON_PATH, SCHEMA_PATH, THEMES_DIR
 
 def load_resume() -> dict:
@@ -26,17 +27,34 @@ def load_resume() -> dict:
     # Parse back into a Python dictionary
     return json.loads(rendered_content)
 
-def validate_schema(data: dict) -> None:
-    """Validates the resume dictionary against the central schema.json."""
+def load_schema() -> dict:
+    """Load the central schema definition from disk."""
     if not SCHEMA_PATH.exists():
         raise FileNotFoundError(f"Schema file not found at {SCHEMA_PATH}")
-        
+
     with open(SCHEMA_PATH, 'r') as f:
-        schema = json.load(f)
-        
+        return json.load(f)
+
+def validate_schema(data: dict) -> None:
+    """Validates the resume dictionary against the central schema.json."""
+    schema = load_schema()
+
     # Validates data against the schema
     # Will raise jsonschema.exceptions.ValidationError if invalid
     validate(instance=data, schema=schema)
+
+def iter_schema_errors(data: dict) -> list[ValidationError]:
+    """Return schema validation errors in a stable order for UI presentation."""
+    schema = load_schema()
+    validator = Draft202012Validator(schema)
+    return sorted(
+        validator.iter_errors(data),
+        key=lambda error: (
+            tuple(str(part) for part in error.path),
+            tuple(str(part) for part in error.schema_path),
+            error.message,
+        ),
+    )
 
 def get_template_env() -> Environment:
     """Returns a Jinja2 Environment configured for the themes directory."""

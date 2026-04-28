@@ -2,43 +2,16 @@ import typer
 from dotenv import load_dotenv
 import json
 from jsonschema import ValidationError
-from resgen.core import load_resume, validate_schema, get_template_env
-from pathlib import Path
-from datetime import datetime
+from resgen.core import load_resume
+from resgen.services import (
+    collect_resume_stats,
+    export_resume,
+    validate_resume,
+)
 
 load_dotenv()
 
 app = typer.Typer()
-SUPPORTED_EXPORT_FORMATS = {"md", "html", "pdf"}
-
-
-def _render_resume_template(template_name: str) -> str:
-    """Loads validated resume data and renders the requested template."""
-    data = load_resume()
-    validate_schema(data)
-
-    env = get_template_env()
-    template = env.get_template(template_name)
-    return template.render(**data)
-
-
-def _export_pdf(output_file: Path) -> None:
-    """Renders the HTML theme to PDF using WeasyPrint when available."""
-    try:
-        from weasyprint import HTML
-    except ImportError as exc:
-        raise RuntimeError(
-            "PDF export requires the optional 'weasyprint' dependency. "
-            "Install it with `pip install weasyprint`."
-        ) from exc
-
-    rendered_html = _render_resume_template("default.html")
-    HTML(string=rendered_html, base_url=str(Path.cwd())).write_pdf(output_file)
-
-
-def _write_text_output(output_file: Path, rendered_output: str) -> None:
-    with open(output_file, "w") as f:
-        f.write(rendered_output)
 
 @app.command()
 def hello():
@@ -49,12 +22,12 @@ def hello():
 def validate():
     """Validates the resume JSON against the defined schema."""
     try:
-        data = load_resume()
+        load_resume()
         typer.echo("Successfully loaded resume data (with secrets injected).")
-        
-        validate_schema(data)
+
+        validate_resume()
         typer.secho("✅ Validation successful! Your resume matches the schema.", fg=typer.colors.GREEN)
-        
+
     except ValueError as e:
         typer.secho(f"Configuration Error: {e}", fg=typer.colors.RED)
     except FileNotFoundError as e:
@@ -71,25 +44,12 @@ def validate():
 @app.command()
 def export(format: str = typer.Option(..., help="Export format: 'md', 'html', or 'pdf'")):
     """Exports the resume to the specified format."""
-    if format not in SUPPORTED_EXPORT_FORMATS:
-        supported_formats = ", ".join(sorted(SUPPORTED_EXPORT_FORMATS))
-        typer.secho(
-            f"Error: Unsupported format '{format}'. Please use one of: {supported_formats}.",
-            fg=typer.colors.RED,
-        )
-        raise typer.Exit(code=1)
-        
     try:
-        output_file = Path(f"resume_export.{format}")
-
-        if format == "pdf":
-            _export_pdf(output_file)
-        else:
-            rendered_output = _render_resume_template(f"default.{format}")
-            _write_text_output(output_file, rendered_output)
-            
+        output_file = export_resume(format)
         typer.secho(f"✅ Successfully exported resume to {output_file.absolute()}", fg=typer.colors.GREEN)
-        
+    except ValueError as e:
+        typer.secho(f"Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
     except FileNotFoundError as e:
         typer.secho(f"File Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
@@ -107,62 +67,27 @@ def export(format: str = typer.Option(..., help="Export format: 'md', 'html', or
 def stats():
     """Calculates fun statistics from your resume."""
     try:
-        data = load_resume()
-        # Optionally validate, though for stats it might be fine without strict schema check.
-        # Still good to make sure data structure is roughly sound.
-        validate_schema(data)
-        
+        stats_summary = collect_resume_stats()
+
         typer.secho("📊 Resume Statistics", fg=typer.colors.CYAN, bold=True)
         typer.echo("-" * 20)
-        
-        # 1. Total Years of Experience
-        work = data.get("work", [])
-        if work:
-            min_start = None
-            max_end = None
-            for job in work:
-                start_str = job.get("startDate")
-                end_str = job.get("endDate")
-                
-                if start_str:
-                    try:
-                        start_date = datetime.strptime(start_str, "%Y-%m-%d")
-                        if min_start is None or start_date < min_start:
-                            min_start = start_date
-                    except ValueError:
-                        pass
-                        
-                if end_str:
-                    try:
-                        end_date = datetime.strptime(end_str, "%Y-%m-%d")
-                        if max_end is None or end_date > max_end:
-                            max_end = end_date
-                    except ValueError:
-                        max_end = datetime.now()
-                else:
-                    max_end = datetime.now()
-            
-            if min_start and max_end:
-                years = round((max_end - min_start).days / 365.25, 1)
-                typer.echo(f"💼 Total Experience: {years} years")
-        
-        # 2. Total Skills / Keywords
-        skills = data.get("skills", [])
-        if skills:
-            total_skills = len(skills)
-            total_keywords = sum(len(skill.get("keywords", [])) for skill in skills)
-            typer.echo(f"🛠️  Skill Categories: {total_skills} ({total_keywords} total keywords)")
-        
-        # 3. Total Projects
-        projects = data.get("projects", [])
-        if projects:
-            typer.echo(f"🚀 Projects: {len(projects)}")
-            
-        # 4. Education
-        education = data.get("education", [])
-        if education:
-            typer.echo(f"🎓 Education entries: {len(education)}")
-            
+
+        if stats_summary.total_experience_years is not None:
+            typer.echo(f"💼 Total Experience: {stats_summary.total_experience_years} years")
+
+        if stats_summary.skill_categories:
+            typer.echo(
+                "🛠️  Skill Categories: "
+                f"{stats_summary.skill_categories} "
+                f"({stats_summary.total_skill_keywords} total keywords)"
+            )
+
+        if stats_summary.project_count:
+            typer.echo(f"🚀 Projects: {stats_summary.project_count}")
+
+        if stats_summary.education_count:
+            typer.echo(f"🎓 Education entries: {stats_summary.education_count}")
+
     except Exception as e:
         typer.secho(f"❌ Error calculating stats: {e}", fg=typer.colors.RED)
 

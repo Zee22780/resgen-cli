@@ -6,6 +6,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, RadioButton, RadioSet, Static
@@ -20,6 +21,11 @@ from resgen.services import (
 
 class ExportScreen(Screen[None]):
     """Run exports in-app with explicit path confirmation."""
+
+    BINDINGS = [
+        Binding("ctrl+r", "confirm_path", "Confirm Path"),
+        Binding("ctrl+x", "run_export", "Export"),
+    ]
 
     FORMAT_OPTIONS = {
         "format-md": "md",
@@ -70,6 +76,13 @@ class ExportScreen(Screen[None]):
         self._render_status()
         self._render_log()
 
+    def action_confirm_path(self) -> None:
+        path_input = self.query_one("#export-path", Input)
+        self._confirm_output_path(path_input.value)
+
+    def action_run_export(self) -> None:
+        self._run_export()
+
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         if event.radio_set.id != "export-formats":
             return
@@ -113,10 +126,9 @@ class ExportScreen(Screen[None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirm-path":
-            path_input = self.query_one("#export-path", Input)
-            self._confirm_output_path(path_input.value)
+            self.action_confirm_path()
         elif event.button.id == "run-export":
-            self._run_export()
+            self.action_run_export()
 
     def _confirm_output_path(self, raw_value: str) -> None:
         normalized_value = raw_value.strip()
@@ -138,25 +150,28 @@ class ExportScreen(Screen[None]):
             self._render_status(error_message="Confirm an output path before exporting.")
             return
 
+        run_button = self.query_one("#run-export", Button)
         self.query_one("#confirm-path", Button).disabled = True
-        self.query_one("#run-export", Button).disabled = True
+        run_button.disabled = True
+        run_button.loading = True
         self._render_status(in_progress=True)
 
         result = run_resume_export(self._selected_format, self._confirmed_output_path)
         self._latest_result = result
 
         self.query_one("#confirm-path", Button).disabled = False
+        run_button.loading = False
         if result.artifact is not None:
             self._suppress_path_change = True
             self.query_one("#export-path", Input).value = str(result.artifact.output_path)
             self._suppress_path_change = False
             self._confirmed_output_path = result.artifact.output_path
-            self.query_one("#run-export", Button).disabled = False
+            run_button.disabled = False
             self._append_log(self._format_success_log(result.artifact))
             self._render_status()
             return
 
-        self.query_one("#run-export", Button).disabled = False
+        run_button.disabled = False
         self._append_log(self._format_error_log(result))
         self._render_status()
 

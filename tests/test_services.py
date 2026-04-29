@@ -11,6 +11,7 @@ import resgen.services as services
 from resgen.services import (
     collect_resume_stats,
     export_resume,
+    get_config_status,
     get_default_export_path,
     get_resume_overview,
     get_resume_validation_report,
@@ -215,6 +216,43 @@ class ResumeServicesTest(unittest.TestCase):
         assert result.error is not None
         self.assertEqual(result.error.kind, "validation_error")
         self.assertIn("$.basics.email", result.error.message)
+
+    def test_get_config_status_reports_paths_assets_and_secret_presence(self) -> None:
+        with self._patched_resume_env():
+            with patch.object(services, "_has_weasyprint", return_value=True):
+                result = get_config_status()
+
+        self.assertIsNone(result.error)
+        self.assertIsNotNone(result.status)
+        assert result.status is not None
+        self.assertEqual(result.status.overall_state, "healthy")
+
+        path_names = {path.name for path in result.status.paths}
+        self.assertEqual(path_names, {"Resume JSON", "Schema", "Themes"})
+
+        env_status = {item.name: item.present for item in result.status.env_vars}
+        self.assertTrue(env_status["EMAIL"])
+        self.assertTrue(env_status["PHONE_NUMBER"])
+
+        asset_names = {asset.name for asset in result.status.assets}
+        self.assertIn("default.md", asset_names)
+        self.assertIn("default.html", asset_names)
+        self.assertIn("WeasyPrint", asset_names)
+
+    def test_get_config_status_flags_missing_resume_path_and_secrets(self) -> None:
+        with patch.dict(os.environ, {"EMAIL": "", "PHONE_NUMBER": ""}, clear=False):
+            with patch.object(core, "RESUME_JSON_PATH", None):
+                with patch.object(services, "_has_weasyprint", return_value=False):
+                    result = get_config_status()
+
+        self.assertIsNone(result.error)
+        self.assertIsNotNone(result.status)
+        assert result.status is not None
+        self.assertEqual(result.status.overall_state, "attention")
+        resume_path = next(path for path in result.status.paths if path.name == "Resume JSON")
+        self.assertFalse(resume_path.configured)
+        email_status = next(item for item in result.status.env_vars if item.name == "EMAIL")
+        self.assertFalse(email_status.present)
 
     def _patched_resume_env(self, resume_json: str = RESUME_JSON):
         resume_path = Path("resume.json")

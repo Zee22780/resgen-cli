@@ -3,15 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 import re
 
 from jsonschema import ValidationError
 
+from . import core
 from .core import get_template_env, iter_schema_errors, load_resume, validate_schema
 
 
 SUPPORTED_EXPORT_FORMATS = {"md", "html", "pdf"}
+DEFAULT_SECRET_NAMES = ("EMAIL", "PHONE_NUMBER")
 SECTION_NAMES = (
     "work",
     "volunteer",
@@ -104,6 +107,44 @@ class ExportArtifact:
 @dataclass(frozen=True)
 class ExportResult:
     artifact: ExportArtifact | None
+    error: DashboardError | None = None
+
+
+@dataclass(frozen=True)
+class ConfigPathStatus:
+    name: str
+    path: str
+    configured: bool
+    exists: bool
+    detail: str
+
+
+@dataclass(frozen=True)
+class EnvVarStatus:
+    name: str
+    present: bool
+    detail: str
+
+
+@dataclass(frozen=True)
+class AssetStatus:
+    name: str
+    available: bool
+    detail: str
+
+
+@dataclass(frozen=True)
+class ConfigStatus:
+    checked_at: datetime
+    overall_state: str
+    paths: list[ConfigPathStatus]
+    env_vars: list[EnvVarStatus]
+    assets: list[AssetStatus]
+
+
+@dataclass(frozen=True)
+class ConfigStatusResult:
+    status: ConfigStatus | None
     error: DashboardError | None = None
 
 
@@ -277,6 +318,42 @@ def get_last_export_path() -> Path | None:
     return _LAST_EXPORT_PATH
 
 
+def get_config_status() -> ConfigStatusResult:
+    """Return safe runtime configuration diagnostics for the settings screen."""
+    try:
+        paths = [
+            _build_resume_path_status(),
+            _build_path_status("Schema", core.SCHEMA_PATH, is_directory=False),
+            _build_path_status("Themes", core.THEMES_DIR, is_directory=True),
+        ]
+        env_vars = [_build_env_var_status(name) for name in _discover_required_env_vars()]
+        assets = [
+            _build_template_asset_status("default.md"),
+            _build_template_asset_status("default.html"),
+            _build_pdf_asset_status(),
+        ]
+    except Exception as exc:
+        return ConfigStatusResult(
+            status=None,
+            error=DashboardError(kind="config_error", message=str(exc)),
+        )
+
+    statuses_ok = all(path.exists for path in paths if path.configured)
+    env_ok = all(variable.present for variable in env_vars)
+    assets_ok = all(asset.available for asset in assets)
+    overall_state = "healthy" if statuses_ok and env_ok and assets_ok else "attention"
+
+    return ConfigStatusResult(
+        status=ConfigStatus(
+            checked_at=datetime.now(),
+            overall_state=overall_state,
+            paths=paths,
+            env_vars=env_vars,
+            assets=assets,
+        )
+    )
+
+
 def _load_resume_data() -> tuple[dict | None, DashboardError | None]:
     try:
         return load_resume(), None
@@ -361,6 +438,90 @@ def _format_failing_value(instance: object, path_parts: list[str]) -> str | None
     if len(rendered) > 120:
         return f"{rendered[:117]}..."
     return rendered
+
+
+def _build_resume_path_status() -> ConfigPathStatus:
+    resume_path = core.RESUME_JSON_PATH
+    if not resume_path:
+        return ConfigPathStatus(
+            name="Resume JSON",
+            path="<not configured>",
+            configured=False,
+            exists=False,
+            detail="Set RESUME_JSON_PATH in .env before loading or validating a resume.",
+        )
+
+    path = Path(resume_path)
+    return ConfigPathStatus(
+        name="Resume JSON",
+        path=str(path),
+        configured=True,
+        exists=path.exists(),
+        detail="Configured resume source file." if path.exists() else "Configured path does not exist.",
+    )
+
+
+def _build_path_status(name: str, path: Path, *, is_directory: bool) -> ConfigPathStatus:
+    exists = path.exists()
+    expected_kind = "directory" if is_directory else "file"
+    detail = f"{expected_kind.title()} is available." if exists else f"Expected {expected_kind} is missing."
+    return ConfigPathStatus(
+        name=name,
+        path=str(path),
+        configured=True,
+        exists=exists,
+        detail=detail,
+    )
+
+
+def _discover_required_env_vars() -> list[str]:
+    names = set(DEFAULT_SECRET_NAMES)
+    resume_path = core.RESUME_JSON_PATH
+    if not resume_path:
+        return sorted(names)
+
+    try:
+        raw_content = Path(resume_path).read_text(encoding="utf-8")
+    except OSError:
+        return sorted(names)
+
+    names.update(re.findall(r"env\.([A-Za-z_][A-Za-z0-9_]*)", raw_content))
+    return sorted(names)
+
+
+def _build_env_var_status(name: str) -> EnvVarStatus:
+    present = bool(os.environ.get(name))
+    detail = "Present in environment." if present else "Missing from environment."
+    return EnvVarStatus(name=name, present=present, detail=detail)
+
+
+def _build_template_asset_status(template_name: str) -> AssetStatus:
+    template_path = core.THEMES_DIR / template_name
+    available = template_path.exists()
+    detail = (
+        f"Found at {template_path}."
+        if available
+        else f"Missing theme asset at {template_path}."
+    )
+    return AssetStatus(name=template_name, available=available, detail=detail)
+
+
+def _build_pdf_asset_status() -> AssetStatus:
+    available = _has_weasyprint()
+    detail = (
+        "WeasyPrint is importable for PDF export."
+        if available
+        else "WeasyPrint is unavailable; PDF export will fail until it is installed."
+    )
+    return AssetStatus(name="WeasyPrint", available=available, detail=detail)
+
+
+def _has_weasyprint() -> bool:
+    try:
+        import weasyprint  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
 
 def _build_resume_stats(data: dict) -> ResumeStats:

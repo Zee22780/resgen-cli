@@ -126,14 +126,18 @@ The current TUI includes:
 * section inventory counts across the resume
 * an in-app validation screen
 * an in-app export screen for Markdown, HTML, and PDF
+* a settings screen for path, asset, and secret-presence diagnostics
+* a keyboard help overlay for global and screen shortcuts
 
 Press `q` to quit the TUI.
+Press `?` inside the TUI to open or close the shortcut help overlay.
 
 Press `v` inside the TUI to open the validation screen. The validation flow includes:
 
 * a `Run Validation` action
 * a navigable issue list for schema failures
 * detailed panels showing the error message, JSON path, schema rule, and likely next fix
+* a `ctrl+r` shortcut for rerunning validation
 
 Press `e` inside the TUI to open the export screen. The export flow includes:
 
@@ -141,6 +145,16 @@ Press `e` inside the TUI to open the export screen. The export flow includes:
 * a prefilled output path based on the selected format
 * explicit output-path confirmation before writes are allowed
 * in-app success and failure states, including export metadata and error feedback
+* `ctrl+r` to confirm the current path and `ctrl+x` to run export
+
+The export path must be a literal file path, including the filename. For example:
+
+* `resume_export.md`
+* `exports/resume.html`
+* `~/Desktop/resume.pdf`
+* `/Users/yourname/Desktop/resume.pdf`
+
+Natural-language destinations such as "save this to my Desktop" are not supported in the current TUI flow.
 
 ## Export Formats
 
@@ -155,3 +169,11 @@ On macOS, `WeasyPrint` may also require native libraries. If needed:
 ```bash
 brew install glib pango gdk-pixbuf cairo libffi
 ```
+
+## Settings Screen
+
+Press `s` inside the TUI to open the settings screen. It reports:
+
+* the active resume, schema, and themes paths
+* whether secret-backed environment variables are present, without rendering their values
+* whether `default.md`, `default.html`, and `WeasyPrint` are available for export workflows

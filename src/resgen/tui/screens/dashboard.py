@@ -2,6 +2,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
@@ -11,6 +12,8 @@ from resgen.services import DashboardOverview, DashboardOverviewResult, get_resu
 
 class DashboardScreen(Screen[None]):
     """Read-only dashboard landing screen."""
+
+    BINDINGS = [Binding("ctrl+r", "refresh_dashboard", "Refresh")]
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dashboard-root"):
@@ -29,7 +32,11 @@ class DashboardScreen(Screen[None]):
     def on_mount(self) -> None:
         self.refresh_dashboard()
 
+    def action_refresh_dashboard(self) -> None:
+        self.refresh_dashboard()
+
     def refresh_dashboard(self) -> None:
+        self._render_loading_state()
         result = get_resume_overview()
         if result.error is not None:
             self._render_error_state(result)
@@ -37,6 +44,19 @@ class DashboardScreen(Screen[None]):
 
         assert result.overview is not None
         self._render_overview(result.overview)
+
+    def _render_loading_state(self) -> None:
+        loading_panel = Panel(Text("Loading resume overview..."), title="Loading", border_style="cyan")
+        self.query_one("#profile-card", Static).update(loading_panel)
+        self.query_one("#health-card", Static).update(loading_panel)
+        for widget_id in (
+            "#experience-card",
+            "#skills-card",
+            "#projects-card",
+            "#education-card",
+            "#section-counts",
+        ):
+            self.query_one(widget_id, Static).update(loading_panel)
 
     def _render_error_state(self, result: DashboardOverviewResult) -> None:
         assert result.error is not None

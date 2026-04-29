@@ -3,6 +3,8 @@ from textual.binding import Binding
 
 from .screens.dashboard import DashboardScreen
 from .screens.export import ExportScreen
+from .screens.help import HelpScreen
+from .screens.settings import SettingsScreen
 from .screens.validation import ValidationScreen
 
 
@@ -110,6 +112,46 @@ class ResgenTuiApp(App[None]):
     #export-log {
         height: 1fr;
     }
+
+    #settings-root {
+        padding: 1 2;
+    }
+
+    #settings-toolbar {
+        height: auto;
+        margin: 0 0 1 0;
+    }
+
+    #settings-status {
+        width: 1fr;
+        margin-left: 1;
+    }
+
+    .settings-row {
+        height: auto;
+        margin: 0 0 1 0;
+    }
+
+    .settings-card {
+        width: 1fr;
+        min-height: 12;
+        margin-right: 1;
+    }
+
+    .settings-card:last-child {
+        margin-right: 0;
+    }
+
+    HelpScreen {
+        align: center middle;
+        background: rgba(15, 23, 42, 0.7);
+    }
+
+    #help-dialog {
+        width: 76;
+        max-width: 90%;
+        height: auto;
+    }
     """
     BINDINGS = [
         Binding("d", "show_dashboard", "Dashboard"),
@@ -125,6 +167,8 @@ class ResgenTuiApp(App[None]):
         self.install_screen(DashboardScreen(), name="dashboard")
         self.install_screen(ValidationScreen(), name="validation")
         self.install_screen(ExportScreen(), name="export")
+        self.install_screen(SettingsScreen(), name="settings")
+        self.install_screen(HelpScreen(), name="help")
         self.sub_title = "Dashboard"
         self.push_screen("dashboard")
 
@@ -144,10 +188,13 @@ class ResgenTuiApp(App[None]):
         self._show_screen("export", "Export")
 
     def action_show_settings(self) -> None:
-        self.notify("Settings screen is planned for a later phase.")
+        self._show_screen("settings", "Settings")
 
     def action_toggle_help(self) -> None:
-        self.notify("Use d, r, v, e, s, q, and ? for navigation.")
+        if isinstance(self.screen, HelpScreen):
+            self.pop_screen()
+            return
+        self.push_screen("help")
 
     def _show_screen(self, screen_name: str, subtitle: str) -> None:
         self.sub_title = subtitle

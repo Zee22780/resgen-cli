@@ -2,6 +2,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, OptionList, Static
@@ -16,6 +17,8 @@ from resgen.services import (
 
 class ValidationScreen(Screen[None]):
     """Run schema validation in-app and browse structured issues."""
+
+    BINDINGS = [Binding("ctrl+r", "run_validation", "Run Validation")]
 
     def __init__(self) -> None:
         super().__init__()
@@ -39,6 +42,9 @@ class ValidationScreen(Screen[None]):
         if event.button.id == "run-validation":
             self.run_validation()
 
+    def action_run_validation(self) -> None:
+        self.run_validation()
+
     def on_option_list_option_highlighted(
         self,
         event: OptionList.OptionHighlighted,
@@ -52,7 +58,11 @@ class ValidationScreen(Screen[None]):
         self._show_issue_detail(event.option_index)
 
     def run_validation(self) -> None:
+        run_button = self.query_one("#run-validation", Button)
+        run_button.loading = True
+        self._render_loading_state()
         result = get_resume_validation_report()
+        run_button.loading = False
         if result.error is not None:
             self._report = None
             self._render_error_state(result)
@@ -61,6 +71,17 @@ class ValidationScreen(Screen[None]):
         assert result.report is not None
         self._report = result.report
         self._render_report(result.report)
+
+    def _render_loading_state(self) -> None:
+        issues_widget = self.query_one("#validation-issues", OptionList)
+        issues_widget.disabled = True
+        issues_widget.set_options(["Validation is running..."])
+        self.query_one("#validation-status", Static).update(
+            Panel(Text("Checking schema and resume data..."), title="Validation Status", border_style="cyan")
+        )
+        self.query_one("#validation-detail", Static).update(
+            Panel(Text("Validation details will appear here when the check completes."), title="Issue Detail", border_style="cyan")
+        )
 
     def _render_report(self, report: ValidationReport) -> None:
         issues_widget = self.query_one("#validation-issues", OptionList)
